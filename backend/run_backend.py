@@ -89,6 +89,15 @@ class AstraHandler(http.server.BaseHTTPRequestHandler):
         c = conn.cursor()
 
         try:
+            # 0. Root Welcome API
+            if path == "/":
+                self.send_json({
+                    "status": "Astra Client Backend is online",
+                    "version": "2.0.4",
+                    "github": "https://github.com/CrafterStudioIndia/AstraCilent-Backend"
+                }, 200)
+                return
+
             # 1. Profile Sync API
             profile_match = re.match(r"^/api/profile/([^/]+)$", path)
             if profile_match:

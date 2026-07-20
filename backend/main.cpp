@@ -67,6 +67,17 @@ int main() {
         res.status = 204;
     });
 
+    // Root Welcome Endpoint
+    svr.Get("/", [&](const httplib::Request& req, httplib::Response& res) {
+        set_cors_headers(res);
+        res.status = 200;
+        res.set_content(json{
+            {"status", "Astra Client Backend is online"},
+            {"version", "2.0.4"},
+            {"github", "https://github.com/CrafterStudioIndia/AstraCilent-Backend"}
+        }.dump(), "application/json");
+    });
+
     // ----------------------------------------------------
     // 1. ASTRA CUSTOM API ENDPOINTS
     // ----------------------------------------------------

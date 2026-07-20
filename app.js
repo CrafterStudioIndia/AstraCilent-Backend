@@ -2,10 +2,16 @@
    ASTRA LAUNCHER APPLICATION LOGIC
    ========================================================================== */
 
-// Global State Configurations
-let backendUrl = localStorage.getItem("astra_launcher_backend_url") || "http://localhost:8080";
+// Global State
+let backendUrl = localStorage.getItem("astra_launcher_backend_url") || "https://astracilent-backend.onrender.com";
 let currentUser = null;
 let currentTheme = localStorage.getItem("astra_launcher_theme") || "purple";
+let skinViewerInstance = null;
+let viewerWalkAnimation = null;
+let viewerRunAnimation = null;
+let gameSkinViewer = null;
+
+// HUD Coordinates and Module toggles
 let hudPositions = {
     hudCPS: { top: 30, left: 30 },
     hudKeystrokes: { top: 120, left: 30 },
@@ -19,33 +25,31 @@ let activeHudModules = {
     hudPotion: true
 };
 
-// 3D Minecraft Viewer variables
-let gameSkinViewer = null;
-
-// Initialize on Load
+// Initialize Launcher on startup
 document.addEventListener("DOMContentLoaded", () => {
     initStars();
     setTheme(currentTheme);
-    checkBackendConnection();
     initDraggables();
     drawCustomCrosshair();
-
-    // Fill URL input field
-    const urlInput = document.getElementById("launcherBackendUrl");
-    if (urlInput) urlInput.value = backendUrl;
-
-    // Check if player has an active session
-    const cachedUserUuid = localStorage.getItem("astra_launcher_user_uuid");
-    if (cachedUserUuid) {
-        syncProfileWithBackend(cachedUserUuid);
-    }
-    
-    // Setup key listener for Keystrokes HUD preview (W, A, S, D visual feedback)
     setupKeystrokesListener();
+
+    // Fill URL fields on UI
+    const urlField = document.getElementById("launcherBackendUrl");
+    if (urlField) urlField.value = backendUrl;
+
+    // Check existing login session
+    const cachedUuid = localStorage.getItem("astra_launcher_user_uuid");
+    if (cachedUuid) {
+        syncProfileWithBackend(cachedUuid);
+    } else {
+        // Show auth entryway card
+        document.getElementById("authCard").style.display = "block";
+        document.getElementById("launcherPanel").style.display = "none";
+    }
 });
 
 // ----------------------------------------------------
-// 1. STARFIELD ANIMATION
+// 1. STARFIELD PARTICLES BACKGROUND
 // ----------------------------------------------------
 function initStars() {
     const canvas = document.getElementById("stars-canvas");
@@ -90,7 +94,6 @@ function initStars() {
             if (star.alpha < 0) star.alpha = 0;
             if (star.alpha > 1) star.alpha = 1;
         });
-        
         requestAnimationFrame(animate);
     }
     animate();
@@ -114,70 +117,101 @@ function setTheme(themeName) {
 }
 
 // ----------------------------------------------------
-// 3. BACKEND CONNECTION & PROFILE SYNC
+// 3. AUTHENTICATION (Login / Register / Profile Sync)
 // ----------------------------------------------------
-async function checkBackendConnection() {
-    const statusText = document.getElementById("serverConnectionText");
-    const indicator = document.querySelector(".status-indicator");
+function switchAuthTab(tab) {
+    const tabs = document.querySelectorAll(".tab-btn");
+    const forms = document.querySelectorAll(".auth-form");
     
+    tabs.forEach(btn => btn.classList.remove("active"));
+    forms.forEach(form => form.classList.remove("active"));
+    
+    if (tab === "register") {
+        document.getElementById("authTabRegister").classList.add("active");
+        document.getElementById("registerForm").classList.add("active");
+    } else {
+        document.getElementById("authTabLogin").classList.add("active");
+        document.getElementById("loginForm").classList.add("active");
+    }
+}
+
+function saveLauncherBackendUrl() {
+    const url = document.getElementById("launcherBackendUrl").value.trim();
+    if (url) {
+        backendUrl = url;
+        localStorage.setItem("astra_launcher_backend_url", backendUrl);
+        alert("Astra server configurations updated successfully!");
+        checkBackendStatus();
+    }
+}
+
+async function checkBackendStatus() {
+    const text = document.getElementById("serverConnectionText");
+    const indicator = document.getElementById("statusIndicator");
     try {
         const res = await fetch(`${backendUrl}/api/yggdrasil`);
         if (res.ok) {
-            statusText.innerText = "Online (API Connected)";
+            text.innerText = "Online (API Connected)";
             indicator.className = "status-indicator online";
         } else {
             throw new Error();
         }
     } catch (e) {
-        statusText.innerText = "Standalone (Server Offline)";
+        text.innerText = "Standalone Mode (API Offline)";
         indicator.className = "status-indicator";
     }
 }
 
-function saveLauncherBackendUrl() {
-    const inputUrl = document.getElementById("launcherBackendUrl").value.trim();
-    if (inputUrl) {
-        backendUrl = inputUrl;
-        localStorage.setItem("astra_launcher_backend_url", backendUrl);
-        alert("Launcher backend connection settings updated.");
-        checkBackendConnection();
-    }
-}
-
-async function syncProfileWithBackend(uuid) {
-    try {
-        const res = await fetch(`${backendUrl}/api/profile/${uuid}`);
-        if (!res.ok) throw new Error();
-        
-        currentUser = await res.json();
-        
-        // Update header UI
-        document.getElementById("headerUsername").innerText = currentUser.username;
-        document.getElementById("headerPoints").innerText = `${currentUser.points.toLocaleString()} PTS`;
-        
-        // Find highest badge to show in offline header status
-        let mainBadge = "User Profile";
-        if (currentUser.badges.includes("Staff")) mainBadge = "👑 Staff Member";
-        else if (currentUser.badges.includes("Founder")) mainBadge = "⭐ Founder Player";
-        else if (currentUser.badges.includes("Beta Tester")) mainBadge = "🧪 Beta Tester";
-        else if (currentUser.badges.includes("Supporter")) mainBadge = "💎 Client Supporter";
-        document.getElementById("headerBadge").innerText = mainBadge;
-        
-        // Render avatar
-        document.getElementById("headerAvatar").innerHTML = `<i class="fa-solid fa-user-astronaut" style="color:var(--accent-color);"></i>`;
-
-        // Render Inventory List inside account tab
-        renderLauncherInventory();
-    } catch (err) {
-        console.error("Failed to sync account profile with backend.", err);
-        clearLauncherSession();
-    }
-}
-
-async function handleAccountLogin(e) {
+// Register Handlers
+async function handleRegister(e) {
     e.preventDefault();
-    const identifier = document.getElementById("launcherEmail").value.trim();
-    const password = document.getElementById("launcherPassword").value;
+    const username = document.getElementById("regUsername").value.trim();
+    const email = document.getElementById("regEmail").value.trim();
+    const password = document.getElementById("regPassword").value;
+    const status = document.getElementById("authStatus");
+
+    status.className = "status-msg";
+    status.innerText = "Connecting to registration node...";
+
+    try {
+        const res = await fetch(`${backendUrl}/api/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, email, password })
+        });
+        
+        // Handle DDoS Rate limiting
+        if (res.status === 429) {
+            status.className = "status-msg error";
+            status.innerText = "Anti-DDoS Warning: Too many requests. Try again in a minute.";
+            return;
+        }
+
+        const data = await res.json();
+        if (res.ok) {
+            status.className = "status-msg success";
+            status.innerText = "Account Created! Select Login to continue.";
+            switchAuthTab("login");
+            document.getElementById("loginIdentifier").value = username;
+        } else {
+            status.className = "status-msg error";
+            status.innerText = data.error || "Failed to register profile.";
+        }
+    } catch (err) {
+        status.className = "status-msg error";
+        status.innerText = "Network Error: Cloud backend server unreachable.";
+    }
+}
+
+// Login Handlers
+async function handleLogin(e) {
+    e.preventDefault();
+    const identifier = document.getElementById("loginIdentifier").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const status = document.getElementById("authStatus");
+
+    status.className = "status-msg";
+    status.innerText = "Authenticating profile...";
 
     try {
         const res = await fetch(`${backendUrl}/api/yggdrasil/authserver/authenticate`, {
@@ -185,106 +219,383 @@ async function handleAccountLogin(e) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username: identifier, password: password })
         });
-        
+
+        if (res.status === 429) {
+            status.className = "status-msg error";
+            status.innerText = "Anti-DDoS Block: Requests throttled. Wait 60s.";
+            return;
+        }
+
         const data = await res.json();
-        
         if (res.ok) {
-            alert(`Account synced! Welcome, ${data.selectedProfile.name}.`);
+            status.className = "status-msg success";
+            status.innerText = "Credentials verified!";
+            
+            // Sync Profile details
             localStorage.setItem("astra_launcher_user_uuid", data.selectedProfile.id);
             syncProfileWithBackend(data.selectedProfile.id);
         } else {
-            alert(data.errorMessage || "Login credentials rejected.");
+            status.className = "status-msg error";
+            status.innerText = data.errorMessage || "Authentication credentials rejected.";
         }
     } catch (e) {
-        alert("Unable to contact backend authentication. Verify the backend service is running.");
+        status.className = "status-msg error";
+        status.innerText = "Connection Error: Validate your API server URL.";
     }
 }
 
-function clearLauncherSession() {
-    localStorage.removeItem("astra_launcher_user_uuid");
-    currentUser = null;
-    document.getElementById("headerUsername").innerText = "Guest Player";
-    document.getElementById("headerPoints").innerText = "0 PTS";
-    document.getElementById("headerBadge").innerText = "Offline Mode";
-    document.getElementById("headerAvatar").innerHTML = `<i class="fa-solid fa-user-astronaut"></i>`;
-    document.getElementById("launcherInvList").innerHTML = `
-        <div style="text-align:center; padding:30px; color:#555;">
-            <i class="fa-solid fa-lock" style="font-size:32px; margin-bottom:10px;"></i>
-            <p>Sign in with your Astra Account credentials to view and inspect your synchronized cosmetics.</p>
-        </div>
-    `;
+// Profile Loader
+async function syncProfileWithBackend(uuid) {
+    try {
+        const res = await fetch(`${backendUrl}/api/profile/${uuid}`);
+        if (!res.ok) throw new Error();
+
+        currentUser = await res.json();
+
+        // Swap Panels
+        document.getElementById("authCard").style.display = "none";
+        document.getElementById("launcherPanel").style.display = "grid";
+
+        // Set Top Header details
+        document.getElementById("headerUsername").innerText = currentUser.username;
+        document.getElementById("headerPoints").innerText = `${currentUser.points.toLocaleString()} PTS`;
+        
+        let tag = "Astra User";
+        if (currentUser.badges.includes("Staff")) tag = "👑 Staff Member";
+        else if (currentUser.badges.includes("Founder")) tag = "⭐ Founder Player";
+        else if (currentUser.badges.includes("Beta Tester")) tag = "🧪 Beta Tester";
+        else if (currentUser.badges.includes("Supporter")) tag = "💎 Client Supporter";
+        document.getElementById("headerBadge").innerText = tag;
+
+        // Set Avatar Icon
+        document.getElementById("headerAvatar").innerHTML = `<i class="fa-solid fa-user-astronaut" style="color:var(--accent-color);"></i>`;
+
+        // Fill custom URL fields
+        document.getElementById("skinUrl").value = currentUser.skin_url;
+        document.getElementById("capeUrl").value = currentUser.cape_url;
+
+        // Trigger Sub modules
+        checkBackendStatus();
+        init3DViewer();
+        initShopLists();
+        switchTab("dashboard");
+    } catch (err) {
+        console.error("Failed to sync profile", err);
+        handleLogout();
+    }
 }
 
-function renderLauncherInventory() {
-    const invList = document.getElementById("launcherInvList");
-    invList.innerHTML = "";
+function handleLogout() {
+    localStorage.removeItem("astra_launcher_user_uuid");
+    currentUser = null;
+    if (skinViewerInstance) {
+        skinViewerInstance.dispose();
+        skinViewerInstance = null;
+    }
+    document.getElementById("launcherPanel").style.display = "none";
+    document.getElementById("authCard").style.display = "block";
+    document.getElementById("authStatus").innerText = "";
+}
 
-    const slotIcons = {
-        wings: "fa-solid fa-dove",
-        cape: "fa-solid fa-square-full",
-        hat: "fa-solid fa-crown",
-        aura: "fa-solid fa-fire"
-    };
+// ----------------------------------------------------
+// 4. INTERACTIVE 3D PLAYER MODEL VIEWER
+// ----------------------------------------------------
+function init3DViewer() {
+    const container = document.querySelector(".viewer-container");
+    const canvas = document.getElementById("launcher-skin-canvas");
 
-    if (currentUser.cosmetics && currentUser.cosmetics.length > 0) {
-        currentUser.cosmetics.forEach(item => {
-            // Determine slot
-            let slot = "cosmetic";
-            if (item.toLowerCase().includes("wing")) slot = "wings";
-            else if (item.toLowerCase().includes("cape")) slot = "cape";
-            else if (item.toLowerCase().includes("crown") || item.toLowerCase().includes("hat")) slot = "hat";
-            else if (item.toLowerCase().includes("aura")) slot = "aura";
+    if (skinViewerInstance) {
+        skinViewerInstance.dispose();
+    }
 
-            const isEquipped = currentUser.equipped[slot] === item;
-            
-            const card = document.createElement("div");
-            card.className = "launcher-cosmetic-item";
-            card.innerHTML = `
-                <div class="cos-info">
-                    <div class="cos-icon"><i class="${slotIcons[slot] || 'fa-solid fa-shirt'}"></i></div>
-                    <div class="cos-details">
-                        <h4>${item}</h4>
-                        <p>${slot.toUpperCase()}</p>
-                    </div>
-                </div>
-                <div>
-                    ${isEquipped 
-                        ? `<span class="badge badge-purple" style="font-size:10px;">Equipped</span>`
-                        : `<span style="font-size:11px; color:#555;">Unequipped</span>`
-                    }
-                </div>
-            `;
-            invList.appendChild(card);
-        });
+    const skinUrl = currentUser.skin_url || "https://textures.minecraft.net/texture/3b6184ef4e4b5e28ef997b1a20a442845c43d8396ecf7b9f5f0b8af4fcf23d";
+
+    skinViewerInstance = new skinview3d.SkinViewer({
+        canvas: canvas,
+        width: container.clientWidth,
+        height: container.clientHeight,
+        skin: skinUrl
+    });
+
+    if (currentUser.equipped.cape && currentUser.cape_url) {
+        skinViewerInstance.loadCape(currentUser.cape_url);
+    }
+
+    viewerWalkAnimation = skinViewerInstance.animations.add(skinview3d.WalkingAnimation);
+    viewerWalkAnimation.speed = 0.8;
+
+    skinViewerInstance.autoRotate = true;
+    skinViewerInstance.autoRotateSpeed = 0.5;
+
+    updateAuraVisuals();
+}
+
+function setViewerAnimation(type) {
+    if (!skinViewerInstance) return;
+    if (viewerWalkAnimation) { viewerWalkAnimation.remove(); viewerWalkAnimation = null; }
+    if (viewerRunAnimation) { viewerRunAnimation.remove(); viewerRunAnimation = null; }
+
+    if (type === "walk") {
+        viewerWalkAnimation = skinViewerInstance.animations.add(skinview3d.WalkingAnimation);
+        viewerWalkAnimation.speed = 0.8;
+    } else if (type === "run") {
+        viewerRunAnimation = skinViewerInstance.animations.add(skinview3d.RunningAnimation);
+        viewerRunAnimation.speed = 1.1;
+    }
+}
+
+function toggleViewerRotation() {
+    if (!skinViewerInstance) return;
+    skinViewerInstance.autoRotate = !skinViewerInstance.autoRotate;
+}
+
+function updateAuraVisuals() {
+    const glow = document.getElementById("launcherAuraGlow");
+    if (currentUser.equipped.aura) {
+        glow.style.opacity = "1";
+        if (currentUser.equipped.aura === "Fire Aura") {
+            glow.style.background = "radial-gradient(circle, rgba(239, 68, 68, 0.3) 0%, rgba(239, 68, 68, 0) 70%)";
+        } else {
+            glow.style.background = "radial-gradient(circle, rgba(var(--accent-rgb), 0.3) 0%, rgba(var(--accent-rgb), 0) 70%)";
+        }
     } else {
-        invList.innerHTML = `
-            <div style="text-align:center; padding:30px; color:#555;">
-                <i class="fa-solid fa-shirt" style="font-size:32px; margin-bottom:10px;"></i>
-                <p>Your cosmetic storage is empty. Earn points and purchase items from the web wardrobe portal!</p>
-            </div>
-        `;
+        glow.style.opacity = "0";
+    }
+}
+
+async function saveTextures(e) {
+    e.preventDefault();
+    const skin_url = document.getElementById("skinUrl").value.trim();
+    const cape_url = document.getElementById("capeUrl").value.trim();
+
+    try {
+        const res = await fetch(`${backendUrl}/api/profile/textures`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uuid: currentUser.uuid, skin_url, cape_url })
+        });
+        
+        if (res.ok) {
+            alert("Custom textures loaded! These will render inside Minecraft.");
+            currentUser.skin_url = skin_url;
+            currentUser.cape_url = cape_url;
+            
+            if (skin_url) skinViewerInstance.loadSkin(skin_url);
+            if (cape_url && currentUser.equipped.cape) {
+                skinViewerInstance.loadCape(cape_url);
+            } else {
+                skinViewerInstance.loadCape(null);
+            }
+        } else {
+            alert("API rejected texture update.");
+        }
+    } catch(err) {
+        alert("API connection failed.");
     }
 }
 
 // ----------------------------------------------------
-// 4. TAB ROUTER
+// 5. COSMETICS STORE (Shop, Inventory, Rewards Claim)
+// ----------------------------------------------------
+const SHOP_ITEMS = [
+    { id: "purple_wings", name: "Astra Wings", slot: "wings", price: 500, icon: "fa-solid fa-dove" },
+    { id: "cosmic_cape", name: "Cosmic Cape", slot: "cape", price: 300, icon: "fa-solid fa-square-full" },
+    { id: "neon_crown", name: "Neon Crown", slot: "hat", price: 400, icon: "fa-solid fa-crown" },
+    { id: "fire_aura", name: "Fire Aura", slot: "aura", price: 600, icon: "fa-solid fa-fire" }
+];
+
+function initShopLists() {
+    const shopGrid = document.getElementById("shopGrid");
+    shopGrid.innerHTML = "";
+    
+    SHOP_ITEMS.forEach(item => {
+        const isOwned = currentUser.cosmetics.includes(item.name);
+        const card = document.createElement("div");
+        card.className = "cosmetic-card glass-panel";
+        card.innerHTML = `
+            <div class="cosmetic-icon"><i class="${item.icon}"></i></div>
+            <h4>${item.name}</h4>
+            <span class="cosmetic-tag">${item.slot}</span>
+            <div class="cosmetic-price"><i class="fa-solid fa-coins"></i> ${item.price} PTS</div>
+            ${isOwned 
+                ? `<button class="btn btn-sm" disabled style="color:#555; border-color:#555;">Purchased</button>`
+                : `<button class="btn btn-sm btn-primary" onclick="buyCosmetic('${item.name}', ${item.price})">Buy Item</button>`
+            }
+        `;
+        shopGrid.appendChild(card);
+    });
+
+    const invGrid = document.getElementById("inventoryGrid");
+    invGrid.innerHTML = "";
+    
+    if (currentUser.cosmetics && currentUser.cosmetics.length > 0) {
+        currentUser.cosmetics.forEach(itemName => {
+            const itemObj = SHOP_ITEMS.find(s => s.name === itemName);
+            if (!itemObj) return;
+
+            const isEquipped = currentUser.equipped[itemObj.slot] === itemName;
+            const card = document.createElement("div");
+            card.className = `cosmetic-card glass-panel ${isEquipped ? 'equipped' : ''}`;
+            card.innerHTML = `
+                ${isEquipped ? `<span class="equipped-badge">EQUIPPED</span>` : ''}
+                <div class="cosmetic-icon"><i class="${itemObj.icon}"></i></div>
+                <h4>${itemObj.name}</h4>
+                <span class="cosmetic-tag">${itemObj.slot}</span>
+                ${isEquipped 
+                    ? `<button class="btn btn-sm btn-danger" onclick="equipCosmetic('${itemObj.slot}', '')">Unequip</button>`
+                    : `<button class="btn btn-sm btn-primary" onclick="equipCosmetic('${itemObj.slot}', '${itemName}')">Equip</button>`
+                }
+            `;
+            invGrid.appendChild(card);
+        });
+    } else {
+        invGrid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:30px; color:#555;"><p>No owned items. Purchase cosmetics in the shop!</p></div>`;
+    }
+}
+
+async function buyCosmetic(itemName, cost) {
+    if (currentUser.points < cost) {
+        alert("Insufficient points balance.");
+        return;
+    }
+    try {
+        const res = await fetch(`${backendUrl}/api/cosmetics/purchase`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uuid: currentUser.uuid, item: itemName, cost })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert(`Purchased ${itemName}!`);
+            currentUser.points = data.points;
+            currentUser.cosmetics = data.cosmetics;
+            document.getElementById("headerPoints").innerText = `${currentUser.points.toLocaleString()} PTS`;
+            initShopLists();
+        }
+    } catch(e) { alert("Purchase API call failed."); }
+}
+
+async function equipCosmetic(slot, item) {
+    try {
+        const res = await fetch(`${backendUrl}/api/cosmetics/equip`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uuid: currentUser.uuid, slot, item })
+        });
+        if (res.ok) {
+            currentUser.equipped[slot] = item;
+            initShopLists();
+            if (slot === "cape") {
+                if (item && currentUser.cape_url) skinViewerInstance.loadCape(currentUser.cape_url);
+                else skinViewerInstance.loadCape(null);
+            } else if (slot === "aura") {
+                updateAuraVisuals();
+            }
+        }
+    } catch(e) { alert("Equipment update failed."); }
+}
+
+function switchWardrobeTab(tab) {
+    const tabs = document.querySelectorAll(".w-tab");
+    const contents = document.querySelectorAll(".wardrobe-content");
+    tabs.forEach(t => t.classList.remove("active"));
+    contents.forEach(c => c.classList.remove("active"));
+
+    if (tab === "shop") {
+        tabs[0].classList.add("active");
+        document.getElementById("shopSection").classList.add("active");
+    } else if (tab === "inventory") {
+        tabs[1].classList.add("active");
+        document.getElementById("inventorySection").classList.add("active");
+    } else {
+        tabs[2].classList.add("active");
+        document.getElementById("earnSection").classList.add("active");
+    }
+}
+
+// Claim rewards
+async function claimDailyReward() {
+    const last = localStorage.getItem(`daily_claim_${currentUser.uuid}`);
+    const now = Date.now();
+    if (last && (now - last < 24 * 60 * 60 * 1000)) {
+        alert("Daily Reward has a 24-hour cooldown.");
+        return;
+    }
+    try {
+        const res = await fetch(`${backendUrl}/api/points/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uuid: currentUser.uuid, amount: 100 })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            localStorage.setItem(`daily_claim_${currentUser.uuid}`, now);
+            currentUser.points = data.points;
+            document.getElementById("headerPoints").innerText = `${currentUser.points.toLocaleString()} PTS`;
+            alert("Claimed 100 PTS!");
+        }
+    } catch(e) { alert("Daily claim server error."); }
+}
+
+async function submitReferral() {
+    const user = document.getElementById("refUser").value.trim();
+    if(!user) return;
+    try {
+        const res = await fetch(`${backendUrl}/api/points/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uuid: currentUser.uuid, amount: 150 })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert(`Applied referral code for ${user}! +150 PTS`);
+            currentUser.points = data.points;
+            document.getElementById("headerPoints").innerText = `${currentUser.points.toLocaleString()} PTS`;
+            document.getElementById("refUser").value = "";
+        }
+    } catch(e) {}
+}
+
+async function claimBugReward() {
+    const id = document.getElementById("bugReportId").value.trim();
+    if(!id) return;
+    try {
+        const res = await fetch(`${backendUrl}/api/points/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uuid: currentUser.uuid, amount: 300 })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert(`Verified bug report ID: ${id}! +300 PTS`);
+            currentUser.points = data.points;
+            document.getElementById("headerPoints").innerText = `${currentUser.points.toLocaleString()} PTS`;
+            document.getElementById("bugReportId").value = "";
+        }
+    } catch(e) {}
+}
+
+// ----------------------------------------------------
+// 6. ROUTER AND DRAGGABLE HUD EDITOR
 // ----------------------------------------------------
 function switchTab(tabId) {
     const panels = document.querySelectorAll(".panel");
     const navItems = document.querySelectorAll(".nav-item");
-    
     panels.forEach(p => p.classList.remove("active"));
     navItems.forEach(n => n.classList.remove("active"));
-    
+
     document.getElementById(`${tabId}Panel`).classList.add("active");
-    
-    const activeNav = Array.from(navItems).find(n => n.getAttribute("onclick").includes(tabId));
-    if (activeNav) activeNav.classList.add("active");
+    const active = Array.from(navItems).find(n => n.getAttribute("onclick").includes(tabId));
+    if (active) active.classList.add("active");
+
+    if (tabId === 'wardrobe' && skinViewerInstance) {
+        setTimeout(() => {
+            const container = document.querySelector(".viewer-container");
+            skinViewerInstance.setSize(container.clientWidth, container.clientHeight);
+        }, 120);
+    }
 }
 
-// ----------------------------------------------------
-// 5. DRAG-AND-DROP HUD EDITOR ENGINE
-// ----------------------------------------------------
 function initDraggables() {
     const elements = document.querySelectorAll(".draggable-module");
     const canvas = document.getElementById("hudCanvas");
@@ -292,48 +603,33 @@ function initDraggables() {
     elements.forEach(el => {
         el.onmousedown = function(e) {
             e.preventDefault();
-            
-            // Get cursor start position
             let pos3 = e.clientX;
             let pos4 = e.clientY;
 
-            // Handle movements
             document.onmousemove = function(e) {
                 e.preventDefault();
-                // calculate coordinate deltas
                 let deltaX = pos3 - e.clientX;
                 let deltaY = pos4 - e.clientY;
                 pos3 = e.clientX;
                 pos4 = e.clientY;
 
-                // Set new positions relative to canvas boundaries
                 let canvasRect = canvas.getBoundingClientRect();
                 let elementRect = el.getBoundingClientRect();
                 
-                let targetTop = el.offsetTop - deltaY;
-                let targetLeft = el.offsetLeft - deltaX;
+                let top = el.offsetTop - deltaY;
+                let left = el.offsetLeft - deltaX;
 
-                // Boundary clipping
-                if (targetTop < 0) targetTop = 0;
-                if (targetLeft < 0) targetLeft = 0;
-                if (targetTop + elementRect.height > canvasRect.height) {
-                    targetTop = canvasRect.height - elementRect.height;
-                }
-                if (targetLeft + elementRect.width > canvasRect.width) {
-                    targetLeft = canvasRect.width - elementRect.width;
-                }
+                if (top < 0) top = 0;
+                if (left < 0) left = 0;
+                if (top + elementRect.height > canvasRect.height) top = canvasRect.height - elementRect.height;
+                if (left + elementRect.width > canvasRect.width) left = canvasRect.width - elementRect.width;
 
-                el.style.top = targetTop + "px";
-                el.style.left = targetLeft + "px";
+                el.style.top = top + "px";
+                el.style.left = left + "px";
 
-                // Save positions in pixel values
-                hudPositions[el.id] = {
-                    top: targetTop,
-                    left: targetLeft
-                };
+                hudPositions[el.id] = { top, left };
             };
 
-            // Stop moving when mouse is released
             document.onmouseup = function() {
                 document.onmousemove = null;
                 document.onmouseup = null;
@@ -353,7 +649,6 @@ function toggleHudModule(moduleId, checkbox) {
     }
 }
 
-// Draw preview for custom crosshairs
 function drawCustomCrosshair() {
     const canvas = document.getElementById("crosshair-preview");
     if (!canvas) return;
@@ -370,104 +665,59 @@ function drawCustomCrosshair() {
     const midX = canvas.width / 2;
     const midY = canvas.height / 2;
     
-    // Draw top
     ctx.beginPath();
-    ctx.moveTo(midX, midY - gap - size/2);
-    ctx.lineTo(midX, midY - gap);
-    ctx.stroke();
-
-    // Draw bottom
-    ctx.beginPath();
-    ctx.moveTo(midX, midY + gap);
-    ctx.lineTo(midX, midY + gap + size/2);
-    ctx.stroke();
-
-    // Draw left
-    ctx.beginPath();
-    ctx.moveTo(midX - gap - size/2, midY);
-    ctx.lineTo(midX - gap, midY);
-    ctx.stroke();
-
-    // Draw right
-    ctx.beginPath();
-    ctx.moveTo(midX + gap, midY);
-    ctx.lineTo(midX + gap + size/2, midY);
+    ctx.moveTo(midX, midY - gap - size/2); ctx.lineTo(midX, midY - gap);
+    ctx.moveTo(midX, midY + gap); ctx.lineTo(midX, midY + gap + size/2);
+    ctx.moveTo(midX - gap - size/2, midY); ctx.lineTo(midX - gap, midY);
+    ctx.moveTo(midX + gap, midY); ctx.lineTo(midX + gap + size/2, midY);
     ctx.stroke();
 }
 
 // ----------------------------------------------------
-// 6. P2P SIMULATOR ENGINE
+// 7. P2P TUNNEL SIMULATOR
 // ----------------------------------------------------
 let p2pActiveRoomCode = "";
-
 function appendP2PLog(text) {
-    const consoleBox = document.getElementById("p2pConsole");
+    const box = document.getElementById("p2pConsole");
     const div = document.createElement("div");
     div.className = "con-line";
-    div.innerText = `[P2P Broker] ${text}`;
-    consoleBox.appendChild(div);
-    consoleBox.scrollTop = consoleBox.scrollHeight;
+    div.innerText = `[P2P Tunnel] ${text}`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
 }
 
 function hostP2PLobby() {
-    const worldName = document.getElementById("worldSelect").value;
     document.getElementById("hostOutputCard").style.display = "none";
-    
-    appendP2PLog(`Spinning up hosting for world: "${worldName}"...`);
-    appendP2PLog("Initializing STUN server queries for hole punching...");
-    
+    appendP2PLog("Initializing secure room hosting...");
+    appendP2PLog("Connecting to TURN relay brokers to mask WAN interface...");
     setTimeout(() => {
-        appendP2PLog("STUN server returned public mapping: 104.22.45.19:50221 -> Local Port 25565");
-        appendP2PLog("Requesting TURN relay fallback server registration...");
-    }, 1000);
-
-    setTimeout(() => {
-        appendP2PLog("Encrypted AES-256 secure tunnel established through relay node [US-West-1]");
-        appendP2PLog("Generating unique Room ID for invite handshake...");
-        
-        // Generate code
         const code = `ASTRA-${Math.random().toString(36).substr(2, 4).toUpperCase()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
         p2pActiveRoomCode = code;
-        
         document.getElementById("roomCodeText").innerText = code;
         document.getElementById("hostOutputCard").style.display = "block";
-        appendP2PLog(`Lobby listening. Invitation Room ID: "${code}"`);
-    }, 2200);
+        appendP2PLog(`AES-256 encrypted tunnel online. Room ID: ${code}`);
+    }, 1500);
 }
 
 function copyRoomCode() {
-    if (!p2pActiveRoomCode) return;
     navigator.clipboard.writeText(p2pActiveRoomCode);
-    alert("Room Invitation code copied to clipboard!");
+    alert("Room code copied!");
 }
 
 function joinP2PLobby() {
     const code = document.getElementById("joinRoomCode").value.trim().toUpperCase();
-    if (!code) {
-        alert("Please enter a valid lobby room code.");
-        return;
-    }
-    
-    appendP2PLog(`Requesting connection to room: "${code}"...`);
-    appendP2PLog("Resolving relay tunnel nodes...");
-    
+    if (!code) return;
+    appendP2PLog(`Negotiating handshake with room: ${code}`);
     setTimeout(() => {
-        appendP2PLog("Direct NAT Traversal mapping failed. Routing tunnel packets through TURN relay...");
-        appendP2PLog("Establishing Diffie-Hellman cryptographic handshake...");
-    }, 1200);
-
-    setTimeout(() => {
-        appendP2PLog(`Handshake completed! Joined multiplayer session room "${code}" successfully.`);
-        alert(`Successfully connected to P2P multiplayer session: ${code}`);
-    }, 2500);
+        appendP2PLog(`Connected! Masked tunnel established with peer lobby.`);
+        alert(`Connected to P2P Session ${code}`);
+    }, 1500);
 }
 
 // ----------------------------------------------------
-// 7. MINECRAFT LAUNCH FLOW SIMULATOR
+// 8. LAUNCH PROTOCOL & INTEGRITY CHECKS (Anti-Crack)
 // ----------------------------------------------------
-let logsOffset = 0;
-
-function addLaunchLog(text, style = "") {
+function addLaunchLog(text, style="") {
     const box = document.getElementById("launchLogsBox");
     const div = document.createElement("div");
     div.className = `log-line ${style}`;
@@ -476,132 +726,125 @@ function addLaunchLog(text, style = "") {
     box.scrollTop = box.scrollHeight;
 }
 
+// Simple client-side hash matcher for Anti-crack (simulating real hash checks)
+function verifyFileHash(filename, content) {
+    const sha = "a78d89fbc0d2f89d311029bac1290bb098ef"; // mock valid sha
+    const hash = hashlib_sha256(content);
+    return hash === sha;
+}
+
+function hashlib_sha256(str) {
+    // Simple mock hash mapping for demo
+    return "a78d89fbc0d2f89d311029bac1290bb098ef";
+}
+
 async function startLaunchSequence() {
     const version = document.getElementById("clientVersion").value;
     document.getElementById("launchLogsBox").innerHTML = "";
-    
-    addLaunchLog(`[Astra Client Boot] Launching profile ${version}...`, "text-purple");
-    addLaunchLog("[Database] Verifying cloud synchronization...");
 
-    // Check if backend is running, otherwise alert or log
-    let hasBackend = false;
+    addLaunchLog(`[Boot] Initializing Astra Launcher context...`, "text-purple");
+    addLaunchLog(`[Anti-Crack] Scanning client jar file integrity...`);
+
+    // Verify mod bundle sizes & hashes with backend server
     let modBundle = [];
+    let hasBackend = false;
     try {
         const res = await fetch(`${backendUrl}/api/mods/bundle`);
         if (res.ok) {
             modBundle = await res.json();
             hasBackend = true;
+        } else if (res.status === 429) {
+            addLaunchLog("[Anti-DDoS] API calls blocked: Rate limit exceeded (status 429).", "text-red");
+            alert("Your requests are being rate-limited by the backend server. Wait a moment.");
+            return;
         }
-    } catch (e) {
-        hasBackend = false;
-    }
+    } catch(e) { hasBackend = false; }
 
     setTimeout(() => {
-        if (hasBackend) {
-            addLaunchLog("[Database] Handshake success. Verifying active session tokens...", "text-green");
-        } else {
-            addLaunchLog("[Database] Service offline. Launching in Local/Offline profile Mode...", "text-red");
-        }
-    }, 1000);
+        addLaunchLog(`[Anti-Crack] Local hash matching completed. Checksums MATCH valid client manifests.`, "text-green");
+    }, 1200);
 
     setTimeout(() => {
-        addLaunchLog("[Assets] Syncing mods bundle configuration from server...");
         if (hasBackend && modBundle.length > 0) {
             modBundle.forEach(m => {
-                addLaunchLog(`[Assets] Checked mod package: ${m.name} (${m.size}) -> Hash OK.`);
+                addLaunchLog(`[Sync] Matching mod package: ${m.name} -> Hash: ${m.hash} OK.`);
             });
         } else {
-            addLaunchLog("[Assets] Loaded local mod cached directory. 4 active files matched.");
+            addLaunchLog(`[Sync] Offline mode: Loaded local mod folder configurations.`);
         }
-    }, 2000);
+    }, 2200);
 
     setTimeout(() => {
-        addLaunchLog("[Injector] Injecting javaagent: authlib-injector.jar");
-        addLaunchLog(`[Injector] Hooking authentication routes onto: ${backendUrl}`);
+        addLaunchLog(`[Injector] Injecting javaagent: authlib-injector.jar`);
+        addLaunchLog(`[Injector] Mapping Minecraft auth endpoints to: ${backendUrl}`);
+        addLaunchLog(`[Launcher] Starting Minecraft Client context...`);
     }, 3200);
 
     setTimeout(() => {
-        addLaunchLog("[HUD Engine] Compiling draggable positions configurations...");
-        addLaunchLog("[Launcher] Starting Minecraft Client window context...");
-    }, 4000);
-
-    setTimeout(() => {
-        // Trigger Minecraft window mock overlays
         launchMinecraftMock();
-    }, 4800);
+    }, 4500);
 }
 
 function launchMinecraftMock() {
     const overlay = document.getElementById("gameOverlay");
     overlay.style.display = "flex";
-    
-    // Populate HUD elements inside Minecraft overlay
+
     const gameHud = document.getElementById("gameHudDisplay");
     gameHud.innerHTML = "";
     
-    // Get hud screen element size boundaries to calculate exact percentages
     const canvas = document.getElementById("hudCanvas");
     const rect = canvas.getBoundingClientRect();
-    
-    // Clone draggable elements to HUD canvas screen
+
+    // Map editor grid percentages to fullscreen client overlays
     if (activeHudModules.hudCPS) {
-        const div = document.createElement("div");
-        div.className = "hud-element";
-        div.style.top = (hudPositions.hudCPS.top / rect.height * 100) + "vh";
-        div.style.left = (hudPositions.hudCPS.left / rect.width * 100) + "vw";
-        div.innerHTML = `<i class="fa-solid fa-computer-mouse"></i> CPS: <span class="val">14</span>`;
-        gameHud.appendChild(div);
+        const d = document.createElement("div");
+        d.className = "hud-element";
+        d.style.top = (hudPositions.hudCPS.top / rect.height * 100) + "vh";
+        d.style.left = (hudPositions.hudCPS.left / rect.width * 100) + "vw";
+        d.innerHTML = `<i class="fa-solid fa-computer-mouse"></i> CPS: <span class="val">14</span>`;
+        gameHud.appendChild(d);
     }
-    
     if (activeHudModules.hudKeystrokes) {
-        const div = document.createElement("div");
-        div.className = "hud-element";
-        div.style.top = (hudPositions.hudKeystrokes.top / rect.height * 100) + "vh";
-        div.style.left = (hudPositions.hudKeystrokes.left / rect.width * 100) + "vw";
-        div.innerHTML = `
+        const d = document.createElement("div");
+        d.className = "hud-element";
+        d.style.top = (hudPositions.hudKeystrokes.top / rect.height * 100) + "vh";
+        d.style.left = (hudPositions.hudKeystrokes.left / rect.width * 100) + "vw";
+        d.innerHTML = `
             <div class="keys-grid">
                 <div class="key-box blank"></div> <div class="key-box active">W</div> <div class="key-box blank"></div>
                 <div class="key-box">A</div> <div class="key-box">S</div> <div class="key-box">D</div>
             </div>
         `;
-        gameHud.appendChild(div);
+        gameHud.appendChild(d);
     }
-
     if (activeHudModules.hudArmor) {
-        const div = document.createElement("div");
-        div.className = "hud-element";
-        div.style.top = (hudPositions.hudArmor.top / rect.height * 100) + "vh";
-        
-        // Handle right aligned calculations
+        const d = document.createElement("div");
+        d.className = "hud-element";
+        d.style.top = (hudPositions.hudArmor.top / rect.height * 100) + "vh";
         if (hudPositions.hudArmor.right) {
-            div.style.right = (hudPositions.hudArmor.right / rect.width * 100) + "vw";
+            d.style.right = (hudPositions.hudArmor.right / rect.width * 100) + "vw";
         } else {
-            div.style.left = (hudPositions.hudArmor.left / rect.width * 100) + "vw";
+            d.style.left = (hudPositions.hudArmor.left / rect.width * 100) + "vw";
         }
-        
-        div.innerHTML = `
+        d.innerHTML = `
             <div class="hud-armor-row"><i class="fa-solid fa-shield-halved"></i> Helmet (100%)</div>
             <div class="hud-armor-row"><i class="fa-solid fa-shield-halved"></i> Chestplate (84%)</div>
         `;
-        gameHud.appendChild(div);
+        gameHud.appendChild(d);
     }
-
     if (activeHudModules.hudPotion) {
-        const div = document.createElement("div");
-        div.className = "hud-element";
-        div.style.top = (hudPositions.hudPotion.top / rect.height * 100) + "vh";
-        
+        const d = document.createElement("div");
+        d.className = "hud-element";
+        d.style.top = (hudPositions.hudPotion.top / rect.height * 100) + "vh";
         if (hudPositions.hudPotion.right) {
-            div.style.right = (hudPositions.hudPotion.right / rect.width * 100) + "vw";
+            d.style.right = (hudPositions.hudPotion.right / rect.width * 100) + "vw";
         } else {
-            div.style.left = (hudPositions.hudPotion.left / rect.width * 100) + "vw";
+            d.style.left = (hudPositions.hudPotion.left / rect.width * 100) + "vw";
         }
-        
-        div.innerHTML = `<i class="fa-solid fa-bottle-droplet"></i> Speed II (1:45)`;
-        gameHud.appendChild(div);
+        d.innerHTML = `<i class="fa-solid fa-bottle-droplet"></i> Speed II (1:45)`;
+        gameHud.appendChild(d);
     }
 
-    // Set connection context
     const connText = document.getElementById("gameConnection");
     if (p2pActiveRoomCode) {
         connText.innerText = `Multiplayer Room: ${p2pActiveRoomCode}`;
@@ -609,21 +852,16 @@ function launchMinecraftMock() {
         connText.innerText = "Singleplayer World";
     }
 
-    // Initialize 3D skin viewer in mock Minecraft game screen
     initGame3DViewer();
 }
 
 function initGame3DViewer() {
     const container = document.querySelector(".game-avatar-container");
     const canvas = document.getElementById("game-skin-canvas");
+    if (gameSkinViewer) gameSkinViewer.dispose();
 
-    if (gameSkinViewer) {
-        gameSkinViewer.dispose();
-    }
-
-    let skin = "https://textures.minecraft.net/texture/3b6184ef4e4b5e28ef997b1a20a442845c43d8396ecf7b9f5f0b8af4fcf23d"; // Default Steve
-    let cape = null;
-    let aura = false;
+    let skin = "https://textures.minecraft.net/texture/3b6184ef4e4b5e28ef997b1a20a442845c43d8396ecf7b9f5f0b8af4fcf23d";
+    let cape = null, aura = false;
 
     if (currentUser) {
         if (currentUser.skin_url) skin = currentUser.skin_url;
@@ -638,23 +876,16 @@ function initGame3DViewer() {
         skin: skin
     });
 
-    if (cape) {
-        gameSkinViewer.loadCape(cape);
-    }
-
-    // Set running animation inside game mockup
+    if (cape) gameSkinViewer.loadCape(cape);
     let run = gameSkinViewer.animations.add(skinview3d.RunningAnimation);
     run.speed = 1.2;
-
     gameSkinViewer.autoRotate = true;
-    gameSkinViewer.autoRotateSpeed = 1.0;
 
-    // Toggle Aura Glow Overlay
     const auraGlow = document.getElementById("gameAuraGlow");
     if (aura) {
         auraGlow.style.opacity = "1";
         if (currentUser.equipped.aura === "Fire Aura") {
-            auraGlow.style.background = "radial-gradient(circle, rgba(255, 82, 82, 0.3) 0%, rgba(255, 82, 82, 0) 70%)";
+            auraGlow.style.background = "radial-gradient(circle, rgba(239, 68, 68, 0.3) 0%, rgba(239, 68, 68, 0) 70%)";
         } else {
             auraGlow.style.background = "radial-gradient(circle, rgba(var(--accent-rgb), 0.3) 0%, rgba(var(--accent-rgb), 0) 70%)";
         }
@@ -665,30 +896,23 @@ function initGame3DViewer() {
 
 function closeMinecraftMock() {
     document.getElementById("gameOverlay").style.display = "none";
-    if (gameSkinViewer) {
-        gameSkinViewer.dispose();
-        gameSkinViewer = null;
-    }
-    addLaunchLog("[Launcher] Minecraft Client closed. Standing by...", "text-purple");
+    if (gameSkinViewer) { gameSkinViewer.dispose(); gameSkinViewer = null; }
+    addLaunchLog("[Launcher] Minecraft Sandbox context terminated. Standby...", "text-purple");
 }
 
-// ----------------------------------------------------
-// 8. OTHER UTILITIES
-// ----------------------------------------------------
 function setupKeystrokesListener() {
     window.addEventListener("keydown", (e) => {
-        const key = e.key.toUpperCase();
-        if (["W", "A", "S", "D"].includes(key)) {
-            const keyEl = document.getElementById(`key${key}`);
-            if (keyEl) keyEl.classList.add("active");
+        const k = e.key.toUpperCase();
+        if (["W", "A", "S", "D"].includes(k)) {
+            const el = document.getElementById(`key${k}`);
+            if (el) el.classList.add("active");
         }
     });
-
     window.addEventListener("keyup", (e) => {
-        const key = e.key.toUpperCase();
-        if (["W", "A", "S", "D"].includes(key)) {
-            const keyEl = document.getElementById(`key${key}`);
-            if (keyEl) keyEl.classList.remove("active");
+        const k = e.key.toUpperCase();
+        if (["W", "A", "S", "D"].includes(k)) {
+            const el = document.getElementById(`key${k}`);
+            if (el) el.classList.remove("active");
         }
     });
 }

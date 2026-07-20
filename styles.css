@@ -4,7 +4,7 @@
 
 /* Theme Variables */
 .theme-purple {
-    --bg-gradient: linear-gradient(135deg, #0e051c 0%, #030107 100%);
+    --bg-gradient: linear-gradient(135deg, rgba(14, 5, 28, 0.72) 0%, rgba(3, 1, 9, 0.93) 100%), url("6069347.jpg");
     --accent-color: #a855f7;
     --accent-rgb: 168, 85, 247;
     --accent-glow: rgba(168, 85, 247, 0.4);
@@ -15,7 +15,7 @@
 }
 
 .theme-red {
-    --bg-gradient: linear-gradient(135deg, #220303 0%, #070101 100%);
+    --bg-gradient: linear-gradient(135deg, rgba(34, 3, 3, 0.72) 0%, rgba(7, 1, 1, 0.93) 100%), url("6069347.jpg");
     --accent-color: #ef4444;
     --accent-rgb: 239, 68, 68;
     --accent-glow: rgba(239, 68, 68, 0.4);
@@ -26,7 +26,7 @@
 }
 
 .theme-blue {
-    --bg-gradient: linear-gradient(135deg, #021a22 0%, #000407 100%);
+    --bg-gradient: linear-gradient(135deg, rgba(2, 26, 34, 0.72) 0%, rgba(0, 4, 7, 0.93) 100%), url("blue-abstract-3840x2160-24798.png");
     --accent-color: #06b6d4;
     --accent-rgb: 6, 182, 212;
     --accent-glow: rgba(6, 182, 212, 0.4);
@@ -37,7 +37,7 @@
 }
 
 .theme-dark {
-    --bg-gradient: linear-gradient(135deg, #111111 0%, #050505 100%);
+    --bg-gradient: linear-gradient(135deg, rgba(17, 17, 17, 0.85) 0%, rgba(5, 5, 5, 0.96) 100%), url("6069347.jpg");
     --accent-color: #dddddd;
     --accent-rgb: 221, 221, 221;
     --accent-glow: rgba(221, 221, 221, 0.3);
@@ -61,6 +61,9 @@ body {
     width: 100vw;
     height: 100vh;
     background: var(--bg-gradient);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     color: #e2e8f0;
     overflow: hidden;
     position: relative;

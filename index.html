@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="theme-purple">
-    <!-- Parallax Space Stars -->
+    <!-- Starfield Particles -->
     <canvas id="stars-canvas"></canvas>
 
     <!-- Fullscreen Minecraft Game Mock Overlay -->
@@ -48,14 +48,14 @@
         </div>
     </div>
 
-    <!-- MAIN LAUNCHER WRAPPER -->
+    <!-- MAIN LAUNCHER CONTAINER -->
     <div class="container">
         <!-- 1. ENTRYWAY AUTHENTICATION PANEL -->
         <div class="auth-card" id="authCard">
             <div class="auth-header">
                 <img src="with_text.png" alt="Astra Logo" class="auth-logo" onerror="this.src='https://cdn.astraclient.com/branding/logo.png'; this.onerror=null;">
                 <h2>Astra Account Sync</h2>
-                <p>Register or Login to manage your custom skins, capes, auras, and points directly inside the client launcher!</p>
+                <p>Sign in to sync your custom client skins, animated capes, badges, and points across all servers!</p>
             </div>
 
             <div class="tabs">
@@ -185,19 +185,45 @@
                         <div class="grid-layout">
                             <!-- Boot box -->
                             <div class="card glass-panel flex-col">
-                                <h3>Launch Sandbox</h3>
-                                <p class="subtitle">Select client version and initialize the boot flow.</p>
+                                <h3>Launch Settings</h3>
+                                <p class="subtitle">Select client version and authentication launch profile.</p>
                                 
                                 <div class="dropdown-group">
-                                    <label for="clientVersion"><i class="fa-solid fa-code-fork"></i> Client version</label>
+                                    <label for="clientVersion"><i class="fa-solid fa-code-fork"></i> Game Version</label>
                                     <select id="clientVersion">
                                         <option value="1.21.11-opt">Astra Client 1.21.11 (Performance Pack)</option>
                                         <option value="1.20.4-opt">Astra Client 1.20.4 (OptiFine Pack)</option>
                                     </select>
                                 </div>
 
+                                <div class="dropdown-group">
+                                    <label for="launchMode"><i class="fa-solid fa-user-gear"></i> Play Profile Mode</label>
+                                    <select id="launchMode" onchange="toggleLaunchModeFields()">
+                                        <option value="astra">Astra Account (Skin & Cape Sync)</option>
+                                        <option value="microsoft">Microsoft Account (Official Online)</option>
+                                        <option value="cracked">Cracked Mode (Offline Play)</option>
+                                    </select>
+                                </div>
+
+                                <!-- Dynamic Input Fields depending on Launch Mode -->
+                                <div id="microsoftAuthFields" style="display:none; margin-bottom: 12px; padding: 12px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.03); border-radius: 10px;">
+                                    <h4 style="font-size:12px; font-weight:700; color:#fff; margin-bottom:5px;"><i class="fa-brands fa-microsoft" style="color:#00a4ef;"></i> Premium Verification</h4>
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="startMicrosoftAuth()" id="msAuthBtn">Link Xbox Profile</button>
+                                    <p id="microsoftAuthStatus" class="hint" style="margin-top:6px; font-size:10px; color:#aaa; line-height:1.3;"></p>
+                                </div>
+
+                                <div id="crackedAuthFields" style="display:none; margin-bottom: 12px;">
+                                    <div class="input-field">
+                                        <label for="crackedUsername" style="font-size:11px; font-weight:600; color:#ccc;">Offline Game Nickname</label>
+                                        <div class="input-group" style="margin-top:3px;">
+                                            <i class="fa-solid fa-user-ninja"></i>
+                                            <input type="text" id="crackedUsername" placeholder="OfflinePlayer">
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <button class="launch-btn glowing-btn" onclick="startLaunchSequence()">
-                                    <i class="fa-solid fa-rocket"></i> LAUNCH ASTRA CLIENT
+                                    <i class="fa-solid fa-rocket"></i> LAUNCH MINECRAFT
                                 </button>
 
                                 <div class="launch-logs-box" id="launchLogsBox">

@@ -717,6 +717,9 @@ function joinP2PLobby() {
 // ----------------------------------------------------
 // 8. LAUNCH PROTOCOL & INTEGRITY CHECKS (Anti-Crack)
 // ----------------------------------------------------
+// ----------------------------------------------------
+// 8. LAUNCH PROTOCOL & INTEGRITY CHECKS (Anti-Crack)
+// ----------------------------------------------------
 function addLaunchLog(text, style="") {
     const box = document.getElementById("launchLogsBox");
     const div = document.createElement("div");
@@ -734,12 +737,48 @@ function verifyFileHash(filename, content) {
 }
 
 function hashlib_sha256(str) {
-    // Simple mock hash mapping for demo
     return "a78d89fbc0d2f89d311029bac1290bb098ef";
+}
+
+// Play Profile Mode Fields Toggles
+function toggleLaunchModeFields() {
+    const mode = document.getElementById("launchMode").value;
+    document.getElementById("microsoftAuthFields").style.display = mode === "microsoft" ? "block" : "none";
+    document.getElementById("crackedAuthFields").style.display = mode === "cracked" ? "block" : "none";
+}
+
+// Microsoft Device Authorization flow simulator
+let linkedMicrosoftAccount = null;
+function startMicrosoftAuth() {
+    const status = document.getElementById("microsoftAuthStatus");
+    const btn = document.getElementById("msAuthBtn");
+
+    btn.disabled = true;
+    status.style.color = "var(--accent-color)";
+    status.innerHTML = "Accessing Microsoft authorization endpoints...";
+
+    setTimeout(() => {
+        const userCode = "ASTRA-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+        status.innerHTML = `Please navigate to <a href="https://microsoft.com/link" target="_blank" style="color:var(--accent-color); font-weight:700;">microsoft.com/link</a> and input this code:<br><strong style="font-size:16px; letter-spacing:1.5px; color:#fff; display:block; margin:6px 0;">${userCode}</strong><br><span style="font-size:9px; color:#888;"><i class="fa-solid fa-spinner fa-spin"></i> Polling authentication broker status...</span>`;
+
+        // Simulate user authorization complete after 6 seconds
+        setTimeout(() => {
+            linkedMicrosoftAccount = {
+                username: "PremiumPlayer_" + Math.floor(Math.random() * 900 + 100),
+                uuid: "3b6184ef-4e4b-5e28-ef99-7b1a20a44284",
+                token: "ms_access_token_mock_" + Math.random().toString(36).substr(2, 10)
+            };
+            status.style.color = "#22c55e";
+            status.innerHTML = `<i class="fa-solid fa-circle-check"></i> Linked Account: <strong>${linkedMicrosoftAccount.username}</strong>`;
+            btn.innerText = "Link different account";
+            btn.disabled = false;
+        }, 6000);
+    }, 1200);
 }
 
 async function startLaunchSequence() {
     const version = document.getElementById("clientVersion").value;
+    const launchMode = document.getElementById("launchMode").value;
     document.getElementById("launchLogsBox").innerHTML = "";
 
     addLaunchLog(`[Boot] Initializing Astra Launcher context...`, "text-purple");
@@ -762,7 +801,7 @@ async function startLaunchSequence() {
 
     setTimeout(() => {
         addLaunchLog(`[Anti-Crack] Local hash matching completed. Checksums MATCH valid client manifests.`, "text-green");
-    }, 1200);
+    }, 1000);
 
     setTimeout(() => {
         if (hasBackend && modBundle.length > 0) {
@@ -772,20 +811,42 @@ async function startLaunchSequence() {
         } else {
             addLaunchLog(`[Sync] Offline mode: Loaded local mod folder configurations.`);
         }
-    }, 2200);
+    }, 1800);
 
     setTimeout(() => {
-        addLaunchLog(`[Injector] Injecting javaagent: authlib-injector.jar`);
-        addLaunchLog(`[Injector] Mapping Minecraft auth endpoints to: ${backendUrl}`);
+        if (launchMode === "astra") {
+            addLaunchLog(`[Auth] Mode: Astra Custom Authentication`);
+            addLaunchLog(`[Auth] Resolving local session for player: ${currentUser.username}`);
+            addLaunchLog(`[Injector] Injecting javaagent: authlib-injector.jar`);
+            addLaunchLog(`[Injector] Mapping Minecraft auth endpoints to: ${backendUrl}`);
+        } else if (launchMode === "microsoft") {
+            if (!linkedMicrosoftAccount) {
+                addLaunchLog(`[Error] Launch aborted: Microsoft Account not linked!`, "text-red");
+                alert("Please link your Microsoft account before launching in Microsoft Mode.");
+                return;
+            }
+            addLaunchLog(`[Auth] Mode: Official Microsoft Account`);
+            addLaunchLog(`[Auth] Player username: ${linkedMicrosoftAccount.username}`);
+            addLaunchLog(`[Auth] Token active: ${linkedMicrosoftAccount.token.substr(0, 15)}...`);
+            addLaunchLog(`[Injector] Bypassing custom auth server (Official Mojang direct path)`);
+        } else if (launchMode === "cracked") {
+            const crackedName = document.getElementById("crackedUsername").value.trim() || "OfflinePlayer";
+            const offlineUuid = "e005085d-8380-353d-82d2-8ab" + Math.floor(Math.random() * 90000 + 10000);
+            addLaunchLog(`[Auth] Mode: Offline/Cracked Play`);
+            addLaunchLog(`[Auth] Profile nickname: ${crackedName}`);
+            addLaunchLog(`[Auth] Offline generated UUID: ${offlineUuid}`);
+            addLaunchLog(`[Injector] Bypassing custom auth server (Offline local profile)`);
+        }
         addLaunchLog(`[Launcher] Starting Minecraft Client context...`);
-    }, 3200);
+    }, 2800);
 
     setTimeout(() => {
         launchMinecraftMock();
-    }, 4500);
+    }, 4000);
 }
 
 function launchMinecraftMock() {
+    const launchMode = document.getElementById("launchMode").value;
     const overlay = document.getElementById("gameOverlay");
     overlay.style.display = "flex";
 
@@ -846,10 +907,13 @@ function launchMinecraftMock() {
     }
 
     const connText = document.getElementById("gameConnection");
-    if (p2pActiveRoomCode) {
-        connText.innerText = `Multiplayer Room: ${p2pActiveRoomCode}`;
+    if (launchMode === "cracked") {
+        const crackedName = document.getElementById("crackedUsername").value.trim() || "OfflinePlayer";
+        connText.innerText = `Offline Profile: ${crackedName}`;
+    } else if (launchMode === "microsoft") {
+        connText.innerText = `Premium Account: ${linkedMicrosoftAccount ? linkedMicrosoftAccount.username : 'Unknown'}`;
     } else {
-        connText.innerText = "Singleplayer World";
+        connText.innerText = `Astra Profile: ${currentUser.username}`;
     }
 
     initGame3DViewer();

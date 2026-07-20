@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astra Client Launcher</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="theme-purple">
+    <!-- Starfield Particles -->
+    <canvas id="stars-canvas"></canvas>
+
+    <!-- Fullscreen Minecraft Game Mock Overlay -->
+    <div id="gameOverlay" class="game-overlay" style="display: none;">
+        <div class="hud-canvas-display" id="gameHudDisplay">
+            <!-- Active elements render here dynamically -->
+        </div>
+        <div class="game-content">
+            <h1 class="game-title">MINECRAFT 1.21.11</h1>
+            <p class="game-status">Connected via Astra Client | <span id="gameConnection">Singleplayer World</span></p>
+            <div class="game-avatar-container">
+                <!-- Inner 3D Preview inside Minecraft -->
+                <canvas id="game-skin-canvas"></canvas>
+                <div class="game-aura" id="gameAuraGlow"></div>
+            </div>
+            <button class="btn btn-danger close-game-btn" onclick="closeMinecraftMock()">Exit Game</button>
+        </div>
+    </div>
+
+    <!-- Theme Selector Button -->
+    <div class="theme-selector-btn" onclick="toggleThemeMenu()">
+        <i class="fa-solid fa-palette"></i>
+    </div>
+    <div class="theme-menu" id="themeMenu">
+        <h3>Choose Launcher Theme</h3>
+        <div class="theme-option purple" onclick="setTheme('purple')">
+            <span class="dot"></span> Cosmic Purple
+        </div>
+        <div class="theme-option red" onclick="setTheme('red')">
+            <span class="dot"></span> Supernova Red
+        </div>
+        <div class="theme-option blue" onclick="setTheme('blue')">
+            <span class="dot"></span> Nebula Blue
+        </div>
+        <div class="theme-option dark" onclick="setTheme('dark')">
+            <span class="dot"></span> Eclipse Black
+        </div>
+    </div>
+
+    <div class="launcher-container glass-panel">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <img src="without_text.png" alt="Astra Logo" class="brand-logo" onerror="this.src='https://cdn.astraclient.com/branding/logo.png'; this.onerror=null;">
+                <h1>Astra Client</h1>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-item active" onclick="switchTab('dashboard')">
+                    <i class="fa-solid fa-house-chimney"></i> Dashboard
+                </button>
+                <button class="nav-item" onclick="switchTab('account')">
+                    <i class="fa-solid fa-circle-user"></i> Account & Inventory
+                </button>
+                <button class="nav-item" onclick="switchTab('hud')">
+                    <i class="fa-solid fa-gauge-high"></i> PvP HUD Editor
+                </button>
+                <button class="nav-item" onclick="switchTab('p2p')">
+                    <i class="fa-solid fa-network-wired"></i> P2P World Hosting
+                </button>
+            </nav>
+
+            <!-- Quick Server Connectivity Status -->
+            <div class="server-status">
+                <div class="status-indicator online"></div>
+                <div class="status-details">
+                    <h4>Astra Server Status</h4>
+                    <p id="serverConnectionText">Checking cloud connection...</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Panel Body -->
+        <main class="main-content">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" placeholder="Search files, mods, servers...">
+                </div>
+
+                <div class="header-profile">
+                    <div class="points-badge">
+                        <i class="fa-solid fa-coins"></i>
+                        <span id="headerPoints">0 PTS</span>
+                    </div>
+                    <div class="profile-icon" id="headerAvatar">
+                        <i class="fa-solid fa-user-astronaut"></i>
+                    </div>
+                    <div class="profile-meta">
+                        <h4 id="headerUsername">Guest Player</h4>
+                        <p id="headerBadge">Offline Mode</p>
+                    </div>
+                </div>
+            </header>
+
+            <!-- PANELS CONTENT -->
+            <div class="content-body">
+                <!-- DASHBOARD PANEL -->
+                <section class="panel active" id="dashboardPanel">
+                    <div class="hero-banner">
+                        <div class="hero-content">
+                            <span class="version-pill">Performance Pack (v1.21.11)</span>
+                            <h2>Launch into the Cosmos</h2>
+                            <p>Astra Client provides state of the art PvP HUD customizers, zero-latency P2P encrypted tunnels, and custom cosmetics rendering to all Astra users in singleplayer & multiplayer.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid-layout">
+                        <!-- Launcher Actions -->
+                        <div class="card glass-panel flex-col">
+                            <h3>Ready to Play</h3>
+                            <p class="subtitle">Select your game directory and target client version.</p>
+                            
+                            <div class="dropdown-group">
+                                <label for="clientVersion"><i class="fa-solid fa-code-fork"></i> Release Pack</label>
+                                <select id="clientVersion">
+                                    <option value="1.21.11-opt">Astra Client 1.21.11 (Performance Pack)</option>
+                                    <option value="1.20.4-opt">Astra Client 1.20.4 (OptiFine Pack)</option>
+                                </select>
+                            </div>
+
+                            <button class="launch-btn glowing-btn" onclick="startLaunchSequence()">
+                                <i class="fa-solid fa-rocket"></i> LAUNCH ASTRA CLIENT
+                            </button>
+
+                            <!-- Live Launch Logs -->
+                            <div class="launch-logs-box" id="launchLogsBox">
+                                <div class="log-line text-purple">[Astra Launcher] Standing by...</div>
+                            </div>
+                        </div>
+
+                        <!-- Client Patch Notes -->
+                        <div class="card glass-panel flex-col scrollable">
+                            <h3>Cosmic Patch Notes</h3>
+                            <div class="patch-note">
+                                <span class="patch-date">July 20, 2026</span>
+                                <h4>Yggdrasil & Skin Injection Sync</h4>
+                                <p>Integrated authlib-injector support. Astra users can now upload their custom skins & capes through the Vercel/Netlify web portal and show them in multiplayer servers and singleplayer worlds completely for free!</p>
+                            </div>
+                            <div class="patch-note">
+                                <span class="patch-date">July 10, 2026</span>
+                                <h4>P2P Hosting Encryption</h4>
+                                <p>Replaced manual port forwarding with secure encrypted tunnels. Share your room ID, and friends can join directly through STUN/TURN relay infrastructure.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ACCOUNT & INVENTORY PANEL -->
+                <section class="panel" id="accountPanel">
+                    <div class="grid-layout">
+                        <!-- Sign In Card -->
+                        <div class="card glass-panel">
+                            <h3><i class="fa-solid fa-circle-user"></i> Astra Account Credentials</h3>
+                            <p class="subtitle">Sync your server cosmetics and points balance by signing in below.</p>
+                            
+                            <form onsubmit="handleAccountLogin(event)" id="launcherLoginForm">
+                                <div class="input-field">
+                                    <label for="launcherEmail">Email Address or Username</label>
+                                    <div class="input-group">
+                                        <i class="fa-solid fa-envelope"></i>
+                                        <input type="text" id="launcherEmail" placeholder="player@astraclient.com" required>
+                                    </div>
+                                </div>
+
+                                <div class="input-field">
+                                    <label for="launcherPassword">Astra Password</label>
+                                    <div class="input-group">
+                                        <i class="fa-solid fa-lock"></i>
+                                        <input type="password" id="launcherPassword" placeholder="••••••••" required>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary glowing-btn" style="width: 100%;">Sync Account Profile</button>
+                            </form>
+
+                            <!-- Backend server connection config -->
+                            <div class="backend-config-card" style="margin-top: 25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
+                                <label for="launcherBackendUrl" style="font-size:12px; font-weight:600; color:#888;">Backend URL (Hosted Link)</label>
+                                <div class="input-group" style="margin-top: 5px;">
+                                    <i class="fa-solid fa-server"></i>
+                                    <input type="url" id="launcherBackendUrl" value="http://localhost:8080" placeholder="https://api.astraclient.com">
+                                </div>
+                                <button class="btn btn-sm" onclick="saveLauncherBackendUrl()" style="margin-top: 8px; width:100%;">Save Connection URL</button>
+                            </div>
+                        </div>
+
+                        <!-- Wardrobe Showcase -->
+                        <div class="card glass-panel flex-col">
+                            <h3><i class="fa-solid fa-shirt"></i> Synchronized Wardrobe</h3>
+                            <p class="subtitle">Owned custom skins, animated capes, aura effects, and hats linked to this client account.</p>
+
+                            <div class="inventory-scroll" id="launcherInvList">
+                                <!-- Loaded items from database -->
+                                <div style="text-align:center; padding:30px; color:#555;">
+                                    <i class="fa-solid fa-lock" style="font-size:32px; margin-bottom:10px;"></i>
+                                    <p>Sign in with your Astra Account credentials to view and inspect your synchronized cosmetics.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- HUD EDITOR PANEL -->
+                <section class="panel" id="hudPanel">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-gauge-high"></i> PvP HUD Layout Editor</h2>
+                        <p>Drag and drop modules to design your ideal HUD layout. The placements automatically render overlay inside Minecraft when launched.</p>
+                    </div>
+
+                    <div class="hud-editor-container">
+                        <!-- Canvas editor screen -->
+                        <div class="hud-screen-canvas" id="hudCanvas">
+                            <div class="canvas-grid-lines"></div>
+                            
+                            <!-- Draggable HUD modules -->
+                            <div class="hud-element draggable-module" id="hudCPS" style="top: 20px; left: 20px;">
+                                <i class="fa-solid fa-computer-mouse"></i> CPS: <span class="val">12</span>
+                            </div>
+
+                            <div class="hud-element draggable-module" id="hudKeystrokes" style="top: 100px; left: 20px;">
+                                <div class="keys-grid">
+                                    <div class="key-box blank"></div> <div class="key-box" id="keyW">W</div> <div class="key-box blank"></div>
+                                    <div class="key-box" id="keyA">A</div> <div class="key-box" id="keyS">S</div> <div class="key-box" id="keyD">D</div>
+                                </div>
+                            </div>
+
+                            <div class="hud-element draggable-module" id="hudArmor" style="top: 20px; right: 20px;">
+                                <div class="hud-armor-row"><i class="fa-solid fa-shield-halved"></i> Helmet (100%)</div>
+                                <div class="hud-armor-row"><i class="fa-solid fa-shield-halved"></i> Chest (84%)</div>
+                            </div>
+
+                            <div class="hud-element draggable-module" id="hudPotion" style="top: 150px; right: 20px;">
+                                <i class="fa-solid fa-bottle-droplet"></i> Speed II (1:45)
+                            </div>
+
+                            <!-- Crosshair Selector Preview -->
+                            <div class="hud-crosshair-center" id="hudCrosshair">
+                                <canvas id="crosshair-preview" width="20" height="20"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Sidebar editor settings -->
+                        <div class="card glass-panel hud-controls-panel">
+                            <h3>HUD Toggles</h3>
+                            <div class="control-switch">
+                                <label for="toggleCPS">CPS Display</label>
+                                <input type="checkbox" id="toggleCPS" checked onchange="toggleHudModule('hudCPS', this)">
+                            </div>
+                            <div class="control-switch">
+                                <label for="toggleKeystrokes">Keystrokes</label>
+                                <input type="checkbox" id="toggleKeystrokes" checked onchange="toggleHudModule('hudKeystrokes', this)">
+                            </div>
+                            <div class="control-switch">
+                                <label for="toggleArmor">Armor Status</label>
+                                <input type="checkbox" id="toggleArmor" checked onchange="toggleHudModule('hudArmor', this)">
+                            </div>
+                            <div class="control-switch">
+                                <label for="togglePotion">Potion Timers</label>
+                                <input type="checkbox" id="togglePotion" checked onchange="toggleHudModule('hudPotion', this)">
+                            </div>
+
+                            <div class="crosshair-editor" style="margin-top:20px; border-top:1px solid rgba(255,255,255,0.05); padding-top:15px;">
+                                <h3>Crosshair Customizer</h3>
+                                <div class="control-group">
+                                    <label for="crosshairColor">Color</label>
+                                    <input type="color" id="crosshairColor" value="#00ff00" onchange="drawCustomCrosshair()">
+                                </div>
+                                <div class="control-group">
+                                    <label for="crosshairSize">Size</label>
+                                    <input type="range" id="crosshairSize" min="4" max="18" value="10" oninput="drawCustomCrosshair()">
+                                </div>
+                                <div class="control-group">
+                                    <label for="crosshairGap">Gap</label>
+                                    <input type="range" id="crosshairGap" min="0" max="8" value="2" oninput="drawCustomCrosshair()">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- P2P WORLD HOSTING PANEL -->
+                <section class="panel" id="p2pPanel">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-network-wired"></i> P2P Multiplayer Hosting</h2>
+                        <p>Launch your singleplayer Minecraft world and open it to multiplayer lobbies instantly. Astra uses secure encrypted tunnels to mask your public IP address.</p>
+                    </div>
+
+                    <div class="grid-layout">
+                        <!-- Host Room -->
+                        <div class="card glass-panel flex-col">
+                            <h3>Host a Lobby</h3>
+                            <p class="subtitle">Open your singleplayer worlds to friends over secure relay tunnels.</p>
+                            
+                            <div class="form-group">
+                                <label for="worldSelect">Select Singleplayer World</label>
+                                <select id="worldSelect">
+                                    <option>Astra PvP Island (1.21.11)</option>
+                                    <option>Survival Cosmos (Hardcore)</option>
+                                </select>
+                            </div>
+
+                            <button class="btn btn-primary glowing-btn" onclick="hostP2PLobby()">Create Secure Lobby Room</button>
+                            
+                            <div class="host-output" id="hostOutputCard" style="display:none; margin-top:20px;">
+                                <h4>Room Active</h4>
+                                <div class="room-code-box">
+                                    <span id="roomCodeText">ASTRA-XXXX</span>
+                                    <button class="btn btn-sm" onclick="copyRoomCode()"><i class="fa-solid fa-copy"></i> Copy</button>
+                                </div>
+                                <p class="hint" style="margin-top:5px;">Share this room ID with friends. They can join your lobby instantly.</p>
+                            </div>
+                        </div>
+
+                        <!-- Join Room -->
+                        <div class="card glass-panel flex-col">
+                            <h3>Join Friend's Lobby</h3>
+                            <p class="subtitle">Join active multiplayer games using room invitations without entering IP addresses.</p>
+                            
+                            <div class="input-field">
+                                <label for="joinRoomCode">Enter Lobby Room Code</label>
+                                <div class="input-group">
+                                    <i class="fa-solid fa-ticket"></i>
+                                    <input type="text" id="joinRoomCode" placeholder="ASTRA-A7B8-99D0">
+                                </div>
+                            </div>
+
+                            <button class="btn" style="width: 100%; border-color:var(--accent-color);" onclick="joinP2PLobby()">Connect to Lobby</button>
+                        </div>
+                    </div>
+
+                    <!-- Negotiation logs console -->
+                    <div class="card glass-panel p2p-logs-card">
+                        <h3>Tunnel Negotiation Logs</h3>
+                        <div class="p2p-console" id="p2pConsole">
+                            <div class="con-line">[P2P Broker] Interface initialized. Standby...</div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Three.js (Required for Game Skin Viewer inside Minecraft Overlay) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/skinview3d@2.1.0/dist/skinview3d.bundle.js"></script>
+    <!-- Launcher Script -->
+    <script src="app.js"></script>
+</body>
+</html>

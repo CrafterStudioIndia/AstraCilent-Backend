@@ -1,0 +1,21 @@
+# SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Compiled binaries and build outputs
+*.exe
+*.out
+*.o
+*.obj
+*.so
+*.dll
+*.lib
+backend/build/
+
+# System and editor directories
+.DS_Store
+.vscode/
+.idea/
+.gemini/

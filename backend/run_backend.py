@@ -15,7 +15,7 @@ DB_FILE = "astra.db"
 UPLOAD_DIR = "uploads"
 
 # Retrieve Admin Password from environment variable (default for local testing)
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Gamedev@1234")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Gamedev@1234").strip().strip('"').strip("'")
 
 # In-memory IP rate limiter tracking: { ip: [timestamp1, timestamp2, ...] }
 RATE_LIMIT_LIMIT = 60 # max requests per minute
@@ -361,6 +361,7 @@ class AstraHandler(http.server.BaseHTTPRequestHandler):
             if path == "/admin/api/users":
                 # Simple header check for admin authentication
                 auth_header = self.headers.get("Authorization")
+                print(f"[Admin Auth Debug] Received Auth: '{auth_header}' | Expected: 'Bearer {ADMIN_PASSWORD}'")
                 if auth_header != f"Bearer {ADMIN_PASSWORD}":
                     self.send_json({"error": "Unauthorized"}, 401)
                     return

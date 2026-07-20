@@ -10,7 +10,7 @@ import os
 import hashlib
 from urllib.parse import urlparse, parse_qs
 
-PORT = 8080
+PORT = int(os.environ.get("PORT", 8080))
 DB_FILE = "astra.db"
 UPLOAD_DIR = "uploads"
 
@@ -1102,3 +1102,17 @@ class AstraHandler(http.server.BaseHTTPRequestHandler):
     </script>
 </body>
 </html>"""
+
+if __name__ == "__main__":
+    init_db()
+    print(f"Database initialized. Astra Client Backend running on port {PORT}")
+    
+    # Allow address reuse for quick redeploy cycles
+    socketserver.TCPServer.allow_reuse_address = True
+    
+    with socketserver.TCPServer(("0.0.0.0", PORT), AstraHandler) as httpd:
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\nStopping server...")
+            httpd.server_close()
